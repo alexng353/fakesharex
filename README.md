@@ -150,7 +150,7 @@ export default function Uploader() {
 
 </details>
 
-When the post request hits this server
+When the post request hits this server, the server saves it and returns the name it generates for the file. The file is saved and served under /uploads.
 
 ## App initialized by @alexng353/typescript-generator
 
