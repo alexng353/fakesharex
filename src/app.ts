@@ -6,8 +6,13 @@ import crypto from "crypto";
 
 import bodyParser from "body-parser";
 
+import dotenv from "dotenv";
+dotenv.config();
+
+
 const app = express();
-const port = 10000;
+// const port = 14000;
+const port = process.env.PORT || 14000;
 
 const corsOptions = {
   origin: "*",
