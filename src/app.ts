@@ -9,6 +9,22 @@ import bodyParser from "body-parser";
 import dotenv from "dotenv";
 dotenv.config();
 
+const ObjectId = require("mongodb").ObjectId;
+
+import { Collection, MongoClient } from "mongodb";
+
+const url: string | undefined = process.env.DATABASE_URL;
+const client = new MongoClient(url!);
+interface uploads {
+  name: string;
+  slug: string;
+  classId?: string;
+  userId?: string;
+  timestamp: Date;
+}
+
+const database = client.db();
+const uploads: Collection<uploads> = database.collection("uploads");
 
 const app = express();
 // const port = 14000;
@@ -17,13 +33,13 @@ const port = process.env.PORT || 14000;
 const corsOptions = {
   origin: "*",
   // size limit
-  limit: "10mb",
+  limit: "100mb",
 };
 
 app.use(cors(corsOptions));
 
 // app.use(bodyParser.json());
-app.use(bodyParser.json({ limit: "10mb" }));
+app.use(bodyParser.json({ limit: "100000kb" }));
 
 app.use("/uploads", express.static("uploads"));
 
@@ -32,54 +48,66 @@ app.use("/uploads", express.static("uploads"));
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.status(403).json({ message: "forbidden" });
+});
+
+app.get("/test", (req, res) => {
+  console.log("test");
+
+  res.status(200).json({ message: "success" });
 });
 
 import fs from "fs";
 
-app.post("/api/upload", (req, res) => {
-  // log form data
-  logger.info(req.body.name);
-  const fileName = req.body.name;
-  const path = crypto.randomBytes(20).toString("hex");
+app.post("/api/v2/upload", async (req, res) => {
+  const { name, files, userId, classId } = req.body;
 
-  // block:
-  /*
-  exe,
-  bat,
-  sh,
-  cmd,
-  jar
-  */
-
-  const regex = /exe|bat|sh|cmd|jar/gi;
-
-  if (regex.test(fileName.toLowerCase())) {
-    res.status(400).send("Invalid file type");
-    return;
+  interface Return {
+    path: string;
   }
+  const returns: Return[] = [];
 
-  // parse the extension out
-  const extension = fileName.split(".").pop();
+  interface FakeFile {
+    name: string;
+    size: number;
+    type: string;
+    file: string;
+  }
+  const promises = files.map(async (file: FakeFile) => {
+    const { name, size, type, file: fileData } = file;
+    const fileBuffer = Buffer.from(fileData, "base64");
+    const fileHash = crypto.randomBytes(20).toString("hex");
+    const fileName = `${fileHash}.${name.split(".").pop()}`;
+    const filePath = `uploads/${fileName}`;
 
-  fs.writeFile(
-    `./uploads/${path}.${extension}`,
-    req.body.file[0],
-    "base64",
-    (err) => {
-      if (err) {
-        logger.error(err);
-        res.status(500).json({ message: "Internal server error", error: err });
-      } else {
-        res.status(200).json({
-          message: "File uploaded successfully",
-          path: `${path}.${extension}`,
-        });
-      }
-    }
-  );
+    fs.writeFileSync(filePath, fileBuffer);
+
+    const user = await database
+
+      .collection("AccountData")
+
+      .findOne({ googleId: userId });
+
+    await uploads.insertOne({
+      name,
+      slug: fileName,
+      userId: new ObjectId(user?._id),
+      timestamp: new Date(),
+      classId: classId && new ObjectId(classId),
+    });
+
+    // console.log(upload);
+
+    returns.push({
+      path: fileName,
+    });
+  });
+
+  await Promise.all(promises);
+
+  return res.status(200).json({ message: "success", data: returns });
 });
 
 app.listen(port, () => {
-  logger.info(`Example app listening at http://localhost:${port}`);
+  logger.info(`Uploader listening at http://localhost:${port}`);
 });
