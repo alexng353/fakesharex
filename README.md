@@ -28,40 +28,52 @@ I am a react developer, so here's a react snippet using dropzone:
 import { useCallback, useState } from "react";
 import Dropzone from "react-dropzone";
 
+interface Props {
+  children: React.ReactNode;
+}
 
-export default function Uploader() {
+export default function Uploader({ children }: Props) {
   const [files, setFiles] = useState<FakeFile[]>([]);
   interface FakeFile {
     name: string;
     size: number;
     type: string;
     file: any;
+    return?: {
+      data: [
+        {
+          path: string;
+        }
+      ];
+      message: string;
+    };
   }
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    // setFiles(acceptedFiles);
     acceptedFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onabort = () => console.log("file reading was aborted");
       reader.onerror = () => console.log("file reading has failed");
       reader.onload = () => {
-        // Do whatever you want with the file contents
         const binaryStr = reader.result;
         console.log(binaryStr);
-
-        // setFiles((prev) => [...prev, binaryStr]);
         const tmp = {
           name: file.name,
           size: file.size,
           type: file.type,
           file: binaryStr,
         };
-        setFiles((prev) => [...prev, tmp]);
-        fetch("http://localhost:10000/api/upload", {
+        fetch("http://localhost:10000/api/v2/upload", {
           method: "POST",
           body: JSON.stringify({
-            file: [_arrayBufferToBase64(tmp.file)],
-            name: tmp.name,
+            files: [
+              {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                file: _arrayBufferToBase64(tmp.file),
+              },
+            ],
           }),
           // body: JSON.stringify({ balls: "true" }),
           headers: {
@@ -70,7 +82,22 @@ export default function Uploader() {
           },
         })
           .then((res) => res.json())
-          .then((res) => console.log(res));
+          .then((res) => {
+            const listOfUrls = res.data.map((file: any) => {
+              return `http://localhost:10000/uploads/${file.path}`;
+            });
+            console.log(listOfUrls);
+            const tmp = {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              file: binaryStr,
+              return: res,
+            };
+            console.log(tmp);
+
+            setFiles((prev) => [...prev, tmp]);
+          });
       };
       reader.readAsArrayBuffer(file);
     });
@@ -86,12 +113,7 @@ export default function Uploader() {
   }
   return (
     <div>
-      <Dropzone onDrop={onDrop}
-      noClick
-      // noclick
-
-
-      >
+      <Dropzone onDrop={onDrop}>
         {({ getRootProps, getInputProps }) => (
           <section>
             <div {...getRootProps()}>
@@ -105,47 +127,37 @@ export default function Uploader() {
           </section>
         )}
       </Dropzone>
-      {files.map((file) => (
-        <div key={file.name}>
-          {_arrayBufferToBase64(file.file)}
+      {files.map((file, index: any) => (
+        <div key={index}>
+          {/* {_arrayBufferToBase64(file.file)} */}
           <img
+            className="max-h-96"
             src={"data:image/jpg;base64, " + _arrayBufferToBase64(file.file)}
             // src={URL.createObjectURL(file)}
             alt=""
           />
-          <button
-            onClick={() => {
-              console.log(file);
-              // console.log(form.get("files[]"));
-              fetch("http://localhost:10000/api/upload", {
-                method: "POST",
-                body: JSON.stringify({
-                  file: [_arrayBufferToBase64(file.file)],
-                  name: file.name,
-                }),
-                // body: JSON.stringify({ balls: "true" }),
-                headers: {
-                  "Content-Type": "application/json",
-                  Accept: "application/json",
-                },
-              })
-                .then((res) => res.json())
-                .then((res) => console.log(res));
-
-              // var obj: any = {};
-              // form.forEach((value, key) => (obj[key] = value));
-              // var json = JSON.stringify(obj);
-            }}
-          >
-            Upload
-          </button>
+          {file?.return?.data[0] && (
+            <button
+              //onclick copy https://content.edubeyond.dev/${file.return.path} to clipboard
+              onClick={() => {
+                if (!file.return?.data[0].path) {
+                  console.log("url not found");
+                  return;
+                }
+                const url = `http://localhost:10000/uploads/${file.return?.data[0].path}`;
+                navigator.clipboard.writeText(url);
+              }}
+            >
+              <span className="hover:underline text-blue-500 active:text-blue-600">
+                {file.return?.data[0].path}
+              </span>
+            </button>
+          )}
         </div>
       ))}
     </div>
   );
 }
-
-
 ```
 
 </details>
